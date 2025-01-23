@@ -1,0 +1,69 @@
+services:
+  redis:
+    container_name: redis-TimetableBot
+    image: redis:latest
+    command: redis-server
+    ports:
+      - '6379:6379'
+    networks:
+      net_con:
+    restart: on-failure
+
+  pg_db:
+    container_name: pg_db-TimetableBot
+    image: postgres:16
+
+    restart: on-failure
+    env_file:
+      - ./.env
+    environment:
+      - POSTGRES_USER=${PG_USER}
+      - POSTGRES_PASSWORD=${PG_PASSWORD}
+      - POSTGRES_DB=${PG_DB}
+    volumes:
+      - ./pg_data:/var/lib/postgresql/data
+      - ./dumps/users.sql:/docker-entrypoint-initdb.d/001_users.sql
+      - ./dumps/tTable.sql:/docker-entrypoint-initdb.d/002_tTable.sql
+      - ./dumps/default_ttable.sql:/docker-entrypoint-initdb.d/003_default_ttable.sql
+    ports:
+      - '5432:5432'
+    networks:
+      net_con:
+
+
+  bot:
+    container_name: bot-TimetableBot
+    build: .
+    command: python core/main.py
+    restart: on-failure
+    depends_on:
+      - pg_db
+      - redis
+    env_file:
+      - .env
+    networks:
+      net_con:
+
+  arq:
+    container_name: arq-TimetableBot
+    build: .
+    command: python core/scheduler/arq_scheduler.py
+    restart: on-failure
+    depends_on:
+      - bot
+    env_file:
+      - ./.env
+    ports:
+      - '6378:6379'
+    networks:
+      net_con:
+    develop:
+      watch:
+        - action: sync
+          path: .
+          target: .
+
+
+networks:
+  net_con:
+    driver: bridge

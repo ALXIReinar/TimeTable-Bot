@@ -1,0 +1,4 @@
+.env
+/dumps
+/pg_data
+/images
